@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Routes</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 800px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <label for="citySelect">Select a city:</label>
+  <select id="citySelect"></select>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Function to fetch city coordinates from the server
+    function fetchCoords() {
+      return fetch('http://127.0.0.1:8000/coords')
+        .then(response => response.json())
+        .catch(error => console.error('Error fetching coordinates:', error));
+    }
+
+    function fetchScores() {
+      return fetch('http://127.0.0.1:8000/scores')
+        .then(response => response.json())
+        .catch(error => console.error('Error fetching scores:', error));
+    }
+
+    // Function to fetch routes from the server
+    function fetchRoutes() {
+      return fetch('http://127.0.0.1:8000/routes')
+        .then(response => response.json())
+        .catch(error => console.error('Error fetching routes:', error));
+    }
+
+    // Function to initialize the map with given coordinates and routes
+    function initMap(coords, routes, scores) {
+      const citySelect = document.getElementById('citySelect');
+      const map = L.map('map').setView([0, 0], 2);
+
+      // Add OpenStreetMap tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Populate city select dropdown
+      Object.keys(routes).forEach(city => {
+        const option = document.createElement('option');
+        option.textContent = city;
+        citySelect.appendChild(option);
+      });
+
+      // Event listener for city select change
+      citySelect.addEventListener('change', () => {
+        const selectedCity = citySelect.value;
+        const selectedCoords = coords[selectedCity];
+        const selectedRoutes = routes[selectedCity];
+
+        // Clear existing markers
+        map.eachLayer(layer => {
+          if (layer instanceof L.Marker) {
+            map.removeLayer(layer);
+          }
+        });
+
+        // Add marker for selected city
+        const selectedMarker = L.marker(selectedCoords, { title: selectedCity, icon: L.icon({ iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41], }) }).addTo(map);
+
+        // Add markers for destination cities
+        selectedRoutes.forEach(destination => {
+          if (coords.hasOwnProperty(destination)) {
+            let score = scores[destination]
+            const destinationCoords = coords[destination];
+            L.marker(destinationCoords, { title: destination, icon: L.icon({ title: destination, iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41]}) }).addTo(map).bindPopup(`${destination}. Score: ${score}.`).openPopup();;
+          }
+        });
+
+        // Pan to selected city
+        map.setView(selectedCoords, 8);
+      });
+
+      // Initialize map with first city
+      const initialCity = Object.keys(routes)[0];
+      citySelect.value = initialCity;
+      citySelect.dispatchEvent(new Event('change'));
+    }
+
+    // Fetch coordinates and routes, then initialize map
+    Promise.all([fetchCoords(), fetchRoutes(), fetchScores()])
+      .then(([coords, routes, scores]) => initMap(coords, routes, scores))
+      .catch(error => console.error('Error initializing map:', error));
+  </script>
+</body>
+</html>
+
